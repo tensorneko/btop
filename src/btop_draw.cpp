@@ -710,6 +710,70 @@ namespace Cpu {
 
 }
 
+namespace Qpu{
+	int width_p = 45, height_p = 32;
+	int min_width = 36, min_height = 6;
+	int x = 1, y, width = 20, height;
+	int b_x, b_y, b_width, b_height, d_graph_height, u_graph_height;
+	bool shown = true, redraw = true;
+
+	unordered_flat_map<string, Draw::Graph> graphs;
+	unordered_flat_map<string, long long> graph_max;
+	string box;
+
+	string draw(const qpu_info& qpu, bool force_redraw, bool data_same) {
+		if (Runner::stopping) return "";
+		if (force_redraw) redraw = true;
+
+		auto tty_mode = Config::getB("tty_mode");
+		auto& graph_symbol = (tty_mode ? "tty" : Config::getS("graph_symbol_qpu"));
+        auto net_auto = Config::getB("net_auto");
+
+
+		string out;
+		out.reserve(width * height);
+		const string title_left = Theme::c("qpu_box") + Fx::ub + Symbols::title_left;
+		const string title_right = Theme::c("qpu_box") + Fx::ub + Symbols::title_right;
+
+		const long long c_max = (net_auto ? graph_max.at("classical") : ((long long)(Config::getI("net_download")) << 20) / 8);
+		const long long q_max = (net_auto ? graph_max.at("quantum") : ((long long)(Config::getI("net_upload")) << 20) / 8);
+
+
+		//* Redraw elements not needed to be updated every cycle
+		if (redraw) {
+			out = box;
+
+			//? Graphs
+			graphs.clear();
+
+			graphs["classical"] = Draw::Graph{
+				width - b_width - 2, u_graph_height, "classical",
+				qpu.qpu_usage.at("classical"), graph_symbol,
+				false, true, c_max};
+
+			graphs["quantum"] = Draw::Graph{
+				width - b_width - 2, d_graph_height, "quantum",
+				qpu.qpu_usage.at("quantum"), graph_symbol, true, true, q_max};
+		}
+
+		//? Graphs and stats
+		int cy = 0;
+		for (const string usage_type : {"classical", "quantum"}) {
+			out += Mv::to(y + 1 + (usage_type == "quantum" ? u_graph_height : 0), x + 1) + graphs.at(usage_type)(qpu.qpu_usage.at(usage_type), redraw or data_same or not got_sensors)
+				+ Mv::to(y + 1 + (usage_type == "quantum" ? height - 3 : 0), x + 1) + Fx::ub + Theme::c("graph_text")
+				+ floating_humanizer(qpu.qpu_usage.at(usage_type).back(), true);
+			const string symbol = (usage_type == "quantum" ? "Q" : "C");
+			out += Mv::to(b_y + 1 + cy, b_x + 1) + Fx::ub + Theme::c("main_fg") + symbol + ' ' + ljust(floating_humanizer(qpu.qpu_usage.at(usage_type).back(), true), 10);
+			cy += (b_height == 5 ? 2 : 1);
+		}
+
+		redraw = false;
+		return out + Fx::reset;
+	}
+
+}
+
+
 namespace Mem {
 	int width_p = 45, height_p = 36;
 	int min_width = 36, min_height = 10;
